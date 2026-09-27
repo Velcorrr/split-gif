@@ -1,38 +1,34 @@
-# Split GIF
+# Split GIF — The other side
 
-A static, browser-only website that combines two user-selected GIFs into an experimental file with different behavior in strict image processors and tolerant browsers.
-
-## Run locally
-
-From this folder run `python -m http.server 8765 --bind 127.0.0.1`, then open http://127.0.0.1:8765. No npm dependencies or build step are required. A web server is necessary for module workers; opening index.html directly from disk will not work.
+A black-and-white, browser-only GIF lab, published at https://velcorrr.github.io/split-gif/.
 
 ## Use
 
-1. Choose an ordinary GIF for the intended chat preview and another for the browser reveal, or load the included abstract demo animations.
-2. Choose how many times the intro should play in the browser.
-3. Create the combined GIF. Compare the simulated chat preview with the actual generated file playing in your browser.
-4. Download it and test it as a Discord attachment. Open the original attachment in a compatible browser to compare results.
+- **GIF → GIF:** select an animated chat intro and a reveal GIF.
+- **Still → GIF:** select a PNG, JPG, WebP, or GIF cover and a reveal GIF. A GIF cover uses its first frame. The cover is fitted to the reveal canvas and encoded as exactly one valid frame.
+- **Mutation room:** edit the reveal palette (monochrome, negative, channel shift), speed, repetitions, whole-file looping, or disposal behavior for afterimage experiments. Add a UTF-8 note in a GIF comment extension.
+- **Byte inspector:** view the file header, malformed transition, decoded comment, frame timings, offsets, and a downloadable JSON report.
 
-Files are read locally using File and Blob APIs and processed in a Web Worker. User-selected files are never sent to a server. Google Fonts is used for typography with system fallbacks. There are no analytics, accounts, API keys, runtime libraries, or external processing services.
+The still-cover preset requests 20 ms. Some browsers clamp 0–10 ms GIF delays to around 100 ms, so requesting zero is not a reliable way to make a cover invisible. **A brief cover flash is possible.** Still mode defaults to play once, which stops at the final reveal frame. Loop forever repeats the entire file, including the cover. Reveal repetitions allow several cycles before stopping or returning to the cover.
 
-## How the file works
+Files stay on your device. Conversion and GIF byte processing run in a Web Worker. Cover images are decoded with createImageBitmap and fitted using a canvas; no image is sent to an API. Google Fonts supplies typography with local fallbacks. No accounts, tracking, runtime packages, or API keys are required.
 
-`gif.js` parses both sources, preserves compressed frame data and timing, promotes each frame's palette to a local color table, and centers differing canvas sizes without scaling. A deliberately malformed LZW transition is inserted between the two sequences. The transition emits clear code 4, pixel index 0, invalid dictionary reference 7 (next legal dictionary entry is 6), then end code 5. These are packed into bytes C4 0B. The output loops the entire intro-and-reveal sequence.
+## Run and test
 
-A strict GIF decoder rejects the transition. A tolerant Chromium decoder can continue to the subsequent frames. The original reference file was observed to be truncated to its valid prefix by Discord's media resizing endpoint. **That endpoint has not been tested with freshly generated output from this app.** Discord's implementation, client, attachment dimensions, proxy cache, and future updates may change results. No claim of universal compatibility is made. The chat preview in the UI is explicitly a simulation, not a live call to Discord.
+Run `python -m http.server 8765 --bind 127.0.0.1` in this folder and open http://127.0.0.1:8765. A web server is required for module workers. Run `npm test` for 15 automated tests. No npm install or build step is needed.
 
-The generator uses its own minimal transition rather than copying bytes, images, or trailing padding from the reference GIF. The website includes only new geometric demo artwork. Arbitrary palettes, transparency, interlacing and frame delays are retained, but unusual background/disposal combinations and different canvas sizes may composite differently. Use matching dimensions and full-frame sources for the most predictable appearance. Re-encoding the result can destroy the effect.
+## Format behavior and limits
 
-## Checks
+The generator preserves compressed input frame pixels, palettes, offsets, transparency, interlacing, and unmodified delays. Differing GIF canvas sizes are centered. Cover images use adaptive palette quantization with up to 255 opaque colors and a transparent index; cover fitting supports contain/crop and a black/white matte. The simple cover LZW encoder clears its dictionary after 200 literal pixels to avoid code-width transitions.
 
-- `npm test`: parser, structural validation, source LZW integrity, input preservation, repeat count, palette retention, centering, transparency, and interlace flags.
-- The generated demo has been observed displaying both animations in Chromium; Pillow rejects its transition after the valid intro.
-- Input limits: 20 MB per file, 2,000 frames, 16-megapixel canvas, and 250 million total decoded pixels per GIF.
+The separating frame contains invalid LZW dictionary code 7 where the next legal entry is 6 (minimum code size 2; packed payload C4 0B). A strict decoder rejects that frame; a tolerant Chromium decoder can continue into the reveal. The original reference attachment's valid prefix was observed being retained by Discord's resizing proxy. Newly generated outputs have been tested in Chromium and with Pillow locally, **not uploaded to Discord by this project**. The chat preview is a simulation. Actual Discord rendering depends on its current client and image-processing path, and may differ. Re-encoding can destroy the effect.
 
-## Publish with GitHub Pages
+Palette mutations affect only the reveal. The trails setting changes disposal to “keep”; it may look unchanged on fully opaque frames. The hidden note is plain text metadata, not encryption or steganography. The inspector displays structural byte facts, not a guarantee that all decoders will accept the file.
 
-Push the contents of this folder to a repository. In Settings → Pages, choose **Deploy from a branch**, **main**, and **/(root)**. Save. The site uses relative asset paths, so it supports project URLs such as `https://USERNAME.github.io/split-gif/` without configuration.
+Limits: 20 MB per input, 2,000 source frames, 16-megapixel source canvas, 250 million decoded pixels per source GIF, 4-megapixel reveal canvas for still covers, 80 MB maximum generated file. Larger generated sequences can contain up to 30,001 frames with repetitions; the UI shows the first 100 frame rows and exports all of them in the report.
 
-The `.nojekyll` file disables unnecessary Jekyll processing. The original research files and reference attachment are outside this project and must not be included in the repository.
+## GitHub Pages
 
-References: [GIF89a format](https://giflib.sourceforge.net/gifstandard/GIF89a.html), [GitHub Pages setup](https://docs.github.com/en/pages/getting-started-with-github-pages/creating-a-github-pages-site).
+Serve the main branch from /(root), with `.nojekyll`. All asset paths are relative. The reference attachment and user's reference artwork are not included in this repository. Demo artwork is generated for the project.
+
+References: [GIF89a specification](https://giflib.sourceforge.net/gifstandard/GIF89a.html), [Mozilla's GIF delay compatibility discussion](https://bugzilla.mozilla.org/show_bug.cgi?id=232822).
